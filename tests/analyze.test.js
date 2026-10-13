@@ -13,7 +13,7 @@ function createMockStorage() {
   };
 }
 
-test('analyze.js - orchestre au maximum 9 requêtes et retourne la structure attendue', async () => {
+test('analyze.js - orchestre les endpoints principaux et package.json', async () => {
   globalThis.localStorage = createMockStorage();
   const originalFetch = globalThis.fetch;
 
@@ -28,6 +28,13 @@ test('analyze.js - orchestre au maximum 9 requêtes et retourne la structure att
 
     if (url.endsWith('/repos/octocat/Hello-World')) {
       payload = { name: 'Hello-World', stargazers_count: 42, language: 'C' };
+    } else if (url.endsWith('/contents/package.json')) {
+      payload = {
+        name: 'package.json',
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from(JSON.stringify({ scripts: { test: 'node --test' } })).toString('base64')
+      };
     } else if (url.includes('/readme')) {
       payload = { name: 'README.md', size: 100 };
     } else if (url.includes('/contents/.github')) {
@@ -64,9 +71,7 @@ test('analyze.js - orchestre au maximum 9 requêtes et retourne la structure att
   assert.equal(result.ok, true);
   assert.ok(result.data);
 
-  // Vérifier le plafond strict de 9 requêtes
-  assert.ok(calledUrls.length <= 9, `Nombre de requêtes (${calledUrls.length}) supérieur à 9`);
-  assert.equal(calledUrls.length, 9, 'Toutes les 9 requêtes prévues ont été orchestrées');
+  assert.equal(calledUrls.length, 10, 'Les 9 endpoints principaux et package.json sont récupérés');
 
   // Vérifier la présence de toutes les propriétés du rapport
   assert.equal(result.data.repo.name, 'Hello-World');
@@ -81,16 +86,79 @@ test('analyze.js - orchestre au maximum 9 requêtes et retourne la structure att
   assert.ok(result.data.rateLimit);
   assert.ok(result.data.fetchedAt);
   assert.equal(result.data.apiVersion, '2022-11-28');
+  assert.equal(result.data.packageJson.scripts.test, 'node --test');
 
   const cachedResult = await runAnalysis('octocat', 'Hello-World');
   assert.equal(cachedResult.ok, true);
   assert.equal(cachedResult.data.cache.fromCache, true);
-  assert.equal(calledUrls.length, 10, 'La seconde analyse réutilise les réponses en cache');
+  assert.equal(calledUrls.length, 11, 'Les réponses positives sont en cache ; les 404 non bloquants sont redemandées');
 
   const refreshedResult = await runAnalysis('octocat', 'Hello-World', { forceRefresh: true });
   assert.equal(refreshedResult.ok, true);
   assert.equal(refreshedResult.data.cache.fromCache, false);
-  assert.equal(calledUrls.length, 19, 'forceRefresh renouvelle les 9 endpoints');
+  assert.equal(calledUrls.length, 21, 'forceRefresh renouvelle les dix endpoints mis en cache');
+
+  globalThis.fetch = originalFetch;
+});
+
+test('analyze.js - charge un fichier de test pour détecter les imports node:test', async () => {
+  globalThis.localStorage = createMockStorage();
+  const originalFetch = globalThis.fetch;
+  const nodeTestSource = "import test from 'node:test';";
+  const rootContents = [
+    { name: 'tests', type: 'dir' },
+    { name: 'src', type: 'dir' }
+  ];
+
+  globalThis.fetch = async (url) => {
+    let payload = {};
+    let status = 200;
+
+    if (url.endsWith('/contents/package.json')) {
+      status = 404;
+    } else if (url.endsWith('/contents')) {
+      payload = rootContents;
+    } else if (url.endsWith('/contents/tests')) {
+      payload = [{ name: 'sample.test.js', type: 'file' }];
+    } else if (url.endsWith('/contents/tests/sample.test.js')) {
+      payload = {
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from(nodeTestSource).toString('base64')
+      };
+    } else if (url.endsWith('/repos/octocat/Hello-World')) {
+      payload = { name: 'Hello-World' };
+    } else if (url.includes('/contents/.github')) {
+      status = 404;
+    } else if (url.includes('/readme')) {
+      payload = { name: 'README.md' };
+    } else if (url.includes('/workflows')) {
+      payload = { total_count: 0, workflows: [] };
+    } else if (url.includes('/releases') || url.includes('/issues') || url.includes('/commits')) {
+      payload = [];
+    } else if (url.includes('/contributors')) {
+      payload = [{ login: 'octocat' }];
+    }
+
+    return new Response(JSON.stringify(payload), {
+      status,
+      headers: {
+        'x-ratelimit-limit': '60',
+        'x-ratelimit-remaining': '50',
+        'x-ratelimit-reset': String(Math.floor((Date.now() + 3600000) / 1000))
+      }
+    });
+  };
+
+  const { runAnalysis } = await import(`../src/api/analyze.js?t=${Date.now()}_imports`);
+  const result = await runAnalysis('octocat', 'Hello-World');
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.packageJson, null);
+  assert.deepEqual(result.data.testFiles, [{
+    path: 'tests/sample.test.js',
+    content: nodeTestSource
+  }]);
 
   globalThis.fetch = originalFetch;
 });

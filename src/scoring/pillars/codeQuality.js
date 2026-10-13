@@ -20,6 +20,28 @@ function getPriorityForPoints(points) {
   return 'low';
 }
 
+function hasNodeTestScript(packageJson) {
+  const scripts = packageJson && typeof packageJson === 'object'
+    ? packageJson.scripts
+    : null;
+  if (!scripts || typeof scripts !== 'object') return false;
+  return Object.values(scripts).some((script) =>
+    typeof script === 'string' && /\bnode\s+--test/.test(script)
+  );
+}
+
+function hasNodeTestImport(testFiles) {
+  if (!Array.isArray(testFiles)) return false;
+  return testFiles.some((file) => {
+    if (!file || typeof file.path !== 'string' || typeof file.content !== 'string') return false;
+    const pathParts = file.path.split('/');
+    const isTestFile = pathParts.length > 1 &&
+      ['tests', 'test', '__tests__'].includes(pathParts[0]) &&
+      /\.test\.(?:js|mjs|cjs)$/i.test(pathParts.at(-1));
+    return isTestFile && /(?:\bfrom\s*['"]node:test['"]|\brequire\(\s*['"]node:test['"]\s*\))/.test(file.content);
+  });
+}
+
 export function computeCodeQualityPillar(analysisData = {}) {
   const safeData = analysisData && typeof analysisData === 'object' ? analysisData : {};
   const rootContents = Array.isArray(safeData.rootContents) ? safeData.rootContents : [];
@@ -38,7 +60,7 @@ export function computeCodeQualityPillar(analysisData = {}) {
     'pytest.ini',
     'phpunit.xml',
     'playwright.config.js'
-  ]);
+  ]) || hasNodeTestScript(safeData.packageJson) || hasNodeTestImport(safeData.testFiles);
 
   const hasCoverageConfig = hasMatchingFile(rootContents, [
     '.nycrc',

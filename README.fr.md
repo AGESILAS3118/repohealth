@@ -20,7 +20,7 @@
 - **Client GitHub REST v3** : Client conforme aux spécifications GitHub API (`2022-11-28`) avec en-têtes obligatoires.
 - **Cache Local Intelligent** : Mise en cache `localStorage` pendant 15 minutes pour préserver le quota d'appels API, avec indication des rapports en cache et actualisation à la demande.
 - **Gestion Active du Rate Limit** : Analyse des en-têtes `X-RateLimit-*`, mémorisation du quota restant et affichage de l'heure exacte de réinitialisation.
-- **Orchestration Plafonnée à 9 Requêtes** : Exécution structurée de 9 requêtes max par diagnostic avec tolérance aux erreurs 404 non bloquantes (ex: dossier `.github` absent).
+- **Orchestration API ciblée** : Exécute les contrôles principaux et lit `package.json` ; si nécessaire, inspecte les fichiers de test pour reconnaître le runner natif Node.js, avec tolérance aux erreurs des endpoints facultatifs.
 - **Sécurité et Vie Privée** : Politique de sécurité de contenu (CSP) stricte, zéro télémétrie, aucun appel réseau vers des tiers, aucun cookie.
 - **Bilingue (FR / EN)** : Détection automatique de la langue du navigateur avec bascule manuelle mémorisée dans `localStorage`.
 - **Thème Sombre / Clair** : Détection et synchronisation avec les préférences système, mémorisation du choix utilisateur.
@@ -64,7 +64,7 @@ repohealth/
 │  │  ├─ github.js          # Client API REST v3 (headers stricts, gestion d'erreurs)
 │  │  ├─ cache.js           # Wrapper localStorage avec TTL 15 min et purge auto
 │  │  ├─ rateLimit.js       # Analyseur d'en-têtes et suivi du rate limit
-│  │  └─ analyze.js         # Orchestrateur de diagnostic (max 9 requêtes)
+│  │  └─ analyze.js         # Orchestrateur de diagnostic et détection des runners de test
 │  ├─ scoring/
 │  │  ├─ engine.js          # Moteur de pondération et calcul de ScoreReport
 │  │  ├─ grades.js          # Table de conversion du score en mention (A+ à F)

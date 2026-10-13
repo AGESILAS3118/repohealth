@@ -92,3 +92,63 @@ test('codeQuality.js - cas 8 : typage détecté', () => {
   assert.equal(typesCheck.passed, true);
   assert.equal(typesCheck.points, 10);
 });
+
+test('codeQuality.js - détecte node --test dans le script test', () => {
+  const result = computeCodeQualityPillar({
+    rootContents: [],
+    packageJson: { scripts: { test: 'node --test' } }
+  });
+
+  const check = result.checks.find((item) => item.id === 'quality_test_config');
+  assert.equal(check.passed, true);
+  assert.equal(check.points, 15);
+});
+
+test('codeQuality.js - détecte node --test avec un chemin et options', () => {
+  for (const script of ['node --test tests/', 'node --test --test-reporter=spec tests/']) {
+    const result = computeCodeQualityPillar({
+      rootContents: [],
+      packageJson: { scripts: { test: script } }
+    });
+    assert.equal(result.checks.find((item) => item.id === 'quality_test_config').passed, true);
+  }
+});
+
+test('codeQuality.js - détecte node --test dans un script npm alternatif', () => {
+  const result = computeCodeQualityPillar({
+    rootContents: [],
+    packageJson: { scripts: { 'test:unit': 'node --test' } }
+  });
+
+  assert.equal(result.checks.find((item) => item.id === 'quality_test_config').passed, true);
+});
+
+test('codeQuality.js - détecte les imports node:test dans les fichiers de test pris en charge', () => {
+  for (const file of [
+    { path: 'tests/example.test.js', content: "import test from 'node:test';" },
+    { path: 'test/example.test.mjs', content: "import { test } from 'node:test';" },
+    { path: '__tests__/example.test.cjs', content: "const test = require('node:test');" }
+  ]) {
+    const result = computeCodeQualityPillar({ rootContents: [], testFiles: [file] });
+    assert.equal(result.checks.find((item) => item.id === 'quality_test_config').passed, true);
+  }
+});
+
+test('codeQuality.js - Jest reste détecté sans régression', () => {
+  const result = computeCodeQualityPillar({
+    rootContents: [{ name: 'jest.config.js' }]
+  });
+
+  assert.equal(result.checks.find((item) => item.id === 'quality_test_config').points, 15);
+});
+
+test('codeQuality.js - sans framework, le score reste inchangé', () => {
+  const result = computeCodeQualityPillar({
+    rootContents: [{ name: 'tests' }],
+    packageJson: { scripts: { test: 'node app.js' } },
+    testFiles: [{ path: 'tests/example.test.js', content: 'assert.equal(1, 1);' }]
+  });
+
+  assert.equal(result.score, 25);
+  assert.equal(result.checks.find((item) => item.id === 'quality_test_config').points, 0);
+});

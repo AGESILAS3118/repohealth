@@ -1,7 +1,7 @@
 /**
  * Module d'orchestration de l'analyse d'un dépôt GitHub public.
- * Exécute au maximum 9 requêtes GitHub API ordonnées, avec interruption propre
- * en cas d'atteinte du rate limit et tolérance aux 404 non bloquants.
+ * Exécute les requêtes principales GitHub API et les requêtes ciblées aux métadonnées
+ * de test, avec interruption propre au rate limit et tolérance aux 404 non bloquants.
  */
 
 import {
@@ -16,6 +16,91 @@ import {
   API_VERSION
 } from './github.js';
 import { getStoredRateLimit } from './rateLimit.js';
+
+const TEST_DIRECTORIES = new Set(['tests', 'test', '__tests__']);
+const TEST_FILE_PATTERN = /\.test\.(?:js|mjs|cjs)$/i;
+const KNOWN_TEST_CONFIGS = new Set([
+  'jest.config.js', 'vitest.config.js', '.mocharc.json', 'pytest.ini',
+  'phpunit.xml', 'playwright.config.js'
+]);
+
+function decodeGitHubFile(response) {
+  const content = response?.data?.content;
+  if (!response?.ok || typeof content !== 'string' || response.data.encoding !== 'base64') return null;
+  try {
+    const binary = atob(content.replaceAll(/\s/g, ''));
+    return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
+  } catch {
+    return null;
+  }
+}
+
+function parsePackageJson(response) {
+  const text = decodeGitHubFile(response);
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasNativeTestScript(packageJson) {
+  const scripts = packageJson?.scripts;
+  return scripts && typeof scripts === 'object' && Object.values(scripts).some(
+    (script) => typeof script === 'string' && /\bnode\s+--test/.test(script)
+  );
+}
+
+function needsTestFileInspection(packageJson, rootContents) {
+  if (hasNativeTestScript(packageJson)) return false;
+  if (rootContents.some((item) => item?.name && KNOWN_TEST_CONFIGS.has(String(item.name).toLowerCase()))) {
+    return false;
+  }
+  const scripts = packageJson?.scripts;
+  return !scripts || !Object.values(scripts).some(
+    (script) => typeof script === 'string' && /\b(?:jest|vitest|mocha|pytest|playwright)\b/i.test(script)
+  );
+}
+
+async function getNodeTestFiles(owner, repo, rootContents, options) {
+  const testFiles = [];
+  const directories = rootContents
+    .filter((item) => item?.type === 'dir' && TEST_DIRECTORIES.has(String(item.name).toLowerCase()))
+    .map((item) => item.name);
+
+  while (directories.length > 0) {
+    const directory = directories.shift();
+    const listing = await fetchContents(owner, repo, directory, options);
+    if (!listing.ok) {
+      if (listing.error === 'rate_limit') return { testFiles, error: listing };
+      continue;
+    }
+
+    for (const item of Array.isArray(listing.data) ? listing.data : []) {
+      const path = `${directory}/${item.name}`;
+      if (item.type === 'dir') {
+        directories.push(path);
+      } else if (item.type === 'file' && TEST_FILE_PATTERN.test(String(item.name))) {
+        const fileResponse = await fetchContents(owner, repo, path, options);
+        if (!fileResponse.ok) {
+          if (fileResponse.error === 'rate_limit') return { testFiles, error: fileResponse };
+          continue;
+        }
+        const content = decodeGitHubFile(fileResponse);
+        if (content !== null) {
+          testFiles.push({ path, content });
+          if (/(?:\bfrom\s*['"]node:test['"]|\brequire\(\s*['"]node:test['"]\s*\))/.test(content)) {
+            return { testFiles };
+          }
+        }
+      }
+    }
+  }
+
+  return { testFiles };
+}
 
 /**
  * Lance l'analyse complète d'un dépôt en orchestrant jusqu'à 9 requêtes.
@@ -42,6 +127,16 @@ export async function runAnalysis(owner, repo, { forceRefresh = false } = {}) {
   const rootContentsRes = await fetchContents(owner, repo, '.', requestOptions);
   if (!rootContentsRes.ok) {
     if (rootContentsRes.error === 'rate_limit') return rootContentsRes;
+  }
+
+  const packageJsonRes = await fetchContents(owner, repo, 'package.json', requestOptions);
+  if (packageJsonRes.error === 'rate_limit') return packageJsonRes;
+  const packageJson = parsePackageJson(packageJsonRes);
+  let testFiles = [];
+  if (needsTestFileInspection(packageJson, rootContentsRes.data || [])) {
+    const testFilesResult = await getNodeTestFiles(owner, repo, rootContentsRes.data || [], requestOptions);
+    if (testFilesResult.error) return testFilesResult.error;
+    testFiles = testFilesResult.testFiles;
   }
 
   // 4. fetchContents('.github') (dossier spécifique, souvent 404 si non présent)
@@ -87,6 +182,8 @@ export async function runAnalysis(owner, repo, { forceRefresh = false } = {}) {
   ].filter((response) => response.fromCache);
   const result = {
     repo: repoRes.data || null,
+    packageJson,
+    testFiles,
     readme: readmeRes.ok ? readmeRes.data : null,
     rootContents: rootContentsRes.ok ? rootContentsRes.data : null,
     githubContents: githubContentsRes.ok ? githubContentsRes.data : null,

@@ -20,7 +20,7 @@
 - **GitHub REST API Client**: Built-in client targeting GitHub API v3 (`2022-11-28`) with strict headers.
 - **Smart Local Storage Cache**: Automatic 15-minute TTL caching prevents redundant API calls and conserves quota; cached reports are labeled and can be refreshed on demand.
 - **Active Rate Limit Handling**: Parses `X-RateLimit-*` headers, remembers remaining calls in `localStorage`, and displays exact reset times.
-- **Capped API Orchestration**: Runs a maximum of 9 sequential calls per diagnostic with non-blocking handling for optional endpoints (such as `.github`).
+- **Targeted API Orchestration**: Runs the core repository checks plus `package.json`; when needed, it inspects test files to recognize native Node.js testing, while keeping optional endpoint failures non-blocking.
 - **Privacy & Security First**: Strict Content Security Policy (CSP), zero telemetry, no third-party network requests, no cookies.
 - **Bilingual (EN / FR)**: Automatic browser language detection with persistent user toggle saved in `localStorage`.
 - **System Theme Adaptive**: Light and dark mode support aligned with system preferences and locally remembered.
@@ -64,7 +64,7 @@ repohealth/
 │  │  ├─ github.js          # REST v3 API client (mandatory headers, safe errors)
 │  │  ├─ cache.js           # LocalStorage wrapper with 15-minute TTL and auto cleanup
 │  │  ├─ rateLimit.js       # X-RateLimit header parser & status tracker
-│  │  └─ analyze.js         # Diagnostic orchestrator (capped at 9 requests)
+│  │  └─ analyze.js         # Diagnostic orchestrator and test-runner detection
 │  ├─ scoring/
 │  │  ├─ engine.js          # Orchestrates weighted pillars and computes overall score
 │  │  ├─ grades.js          # Score to letter grade conversion (A+ to F)
