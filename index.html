@@ -511,6 +511,30 @@
       flex-wrap: wrap;
     }
 
+    .cache-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-subtle);
+      font-size: 0.9rem;
+    }
+
+    .cache-refresh-button {
+      padding: 0.4rem 0.75rem;
+      white-space: nowrap;
+    }
+
+    .cache-refresh-spinner {
+      width: 1rem;
+      height: 1rem;
+      border-width: 2px;
+    }
+
     .score-display, .grade-display {
       display: flex;
       flex-direction: column;
@@ -706,6 +730,16 @@
     }
 
     @media (max-width: 600px) {
+      .cache-banner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .cache-refresh-button {
+        width: 100%;
+        justify-content: center;
+      }
+
       .report-export .btn-secondary {
         width: 100%;
         justify-content: center;

@@ -18,7 +18,7 @@
 - **Pilier Documentation (20 %)** : Diagnostic complet sur 9 critères (présence du README, volume > 800 car., structure en titres, blocs de code, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, SUPPORT, CHANGELOG).
 - **Recommandations Priorisées** : Plan d'action classé par gain de points estimé avec niveau de priorité (`haute`, `moyenne`, `basse`).
 - **Client GitHub REST v3** : Client conforme aux spécifications GitHub API (`2022-11-28`) avec en-têtes obligatoires.
-- **Cache Local Intelligent** : Mise en cache `localStorage` avec TTL d'une heure pour préserver le quota d'appels API.
+- **Cache Local Intelligent** : Mise en cache `localStorage` pendant 15 minutes pour préserver le quota d'appels API, avec indication des rapports en cache et actualisation à la demande.
 - **Gestion Active du Rate Limit** : Analyse des en-têtes `X-RateLimit-*`, mémorisation du quota restant et affichage de l'heure exacte de réinitialisation.
 - **Orchestration Plafonnée à 9 Requêtes** : Exécution structurée de 9 requêtes max par diagnostic avec tolérance aux erreurs 404 non bloquantes (ex: dossier `.github` absent).
 - **Sécurité et Vie Privée** : Politique de sécurité de contenu (CSP) stricte, zéro télémétrie, aucun appel réseau vers des tiers, aucun cookie.
@@ -62,7 +62,7 @@ repohealth/
 │  ├─ main.js               # Logique d'initialisation (i18n, DOM, rendu du scoring)
 │  ├─ api/
 │  │  ├─ github.js          # Client API REST v3 (headers stricts, gestion d'erreurs)
-│  │  ├─ cache.js           # Wrapper localStorage avec TTL 1h et purge auto
+│  │  ├─ cache.js           # Wrapper localStorage avec TTL 15 min et purge auto
 │  │  ├─ rateLimit.js       # Analyseur d'en-têtes et suivi du rate limit
 │  │  └─ analyze.js         # Orchestrateur de diagnostic (max 9 requêtes)
 │  ├─ scoring/

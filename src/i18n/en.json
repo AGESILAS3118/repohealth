@@ -164,6 +164,14 @@
     "ariaLabel": "Toggle light/dark theme"
   },
   "report": {
+    "cache": {
+      "banner": "Cached data ({age})",
+      "fresh": "just now",
+      "minutes": "{n} min ago",
+      "hours": "{n}h ago",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing..."
+    },
     "badge": {
       "title": "Badge",
       "download": "Download SVG",

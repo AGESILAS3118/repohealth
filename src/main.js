@@ -27,6 +27,17 @@ function formatDisplayedScore(score) {
   return Number(score).toFixed(1);
 }
 
+export function formatCacheAge(age, translate = t) {
+  const minutes = Math.floor(age / 60000);
+  if (minutes < 1) return translate('report.cache.fresh');
+  if (minutes < 60) return translate('report.cache.minutes').replace('{n}', String(minutes));
+  return translate('report.cache.hours').replace('{n}', String(Math.floor(minutes / 60)));
+}
+
+function formatCacheBanner(age) {
+  return t('report.cache.banner').replace('{age}', formatCacheAge(age));
+}
+
 /**
  * Charge un dictionnaire de traduction pour une langue donnée.
  * @param {string} lang - 'fr' ou 'en'
@@ -404,6 +415,13 @@ export function renderScoreReport(analysis, report) {
     ? `[![RepoHealth](${badgeData.dataUri})](${reportLink})`
     : '';
   const uploadedSvgMarkdown = `[![RepoHealth](./repohealth-badge.svg)](${reportLink})`;
+  const cacheBannerHtml = analysis.cache?.fromCache
+    ? `<div class="cache-banner" role="status" aria-live="polite">
+        <span class="cache-banner-icon" aria-hidden="true">📦</span>
+        <span class="cache-banner-message" data-cache-status>${escapeHtml(formatCacheBanner(analysis.cache.age || 0))}</span>
+        <button type="button" class="btn-secondary cache-refresh-button" data-cache-refresh>${escapeHtml(t('report.cache.refresh'))}</button>
+      </div>`
+    : '';
 
   resultsContainer.innerHTML = `
     <div class="result-card">
@@ -414,6 +432,8 @@ export function renderScoreReport(analysis, report) {
           <span class="repo">${escapeHtml(repoName)}</span>
         </h2>
       </div>
+
+      ${cacheBannerHtml}
 
       <div class="summary-grid">
         <div class="summary-metric">
@@ -524,6 +544,51 @@ export function renderScoreReport(analysis, report) {
       ]))
     });
   }
+
+  if (analysis.cache?.fromCache) {
+    wireCacheRefresh(owner, repoName, analysis.cache.age || 0);
+  }
+}
+
+function wireCacheRefresh(owner, repo, age) {
+  const button = document.querySelector('[data-cache-refresh]');
+  const status = document.querySelector('[data-cache-status]');
+  button?.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = t('report.cache.refreshing');
+    if (status) {
+      status.innerHTML = '<span class="spinner cache-refresh-spinner" aria-hidden="true"></span>';
+    }
+
+    try {
+      const result = await runAnalysis(owner, repo, { forceRefresh: true });
+      if (!result.ok) {
+        if (result.error === 'rate_limit') {
+          showError('error_rate_limit', { resetAt: result.resetAt });
+        } else if (result.error === 'not_found') {
+          showError('error_not_found');
+        } else if (result.error === 'network') {
+          showError('error_network');
+        } else if (result.error === 'forbidden') {
+          showError('error_forbidden');
+        } else {
+          showError('errors.invalidFormat');
+        }
+        return;
+      }
+
+      renderScoreReport(result.data, computeScoreReport(result.data));
+    } catch (error) {
+      console.error('Erreur inattendue lors du rafraîchissement:', error);
+      showError('error_network');
+    } finally {
+      button.disabled = false;
+      button.textContent = t('report.cache.refresh');
+      if (status?.isConnected !== false) {
+        status.textContent = formatCacheBanner(age);
+      }
+    }
+  });
 }
 
 /**

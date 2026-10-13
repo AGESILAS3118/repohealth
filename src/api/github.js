@@ -8,7 +8,7 @@
  * - User-Agent: RepoHealth/0.1
  */
 
-import { getCached, setCached } from './cache.js';
+import { getCached, invalidateCache, setCached } from './cache.js';
 import { updateRateLimitFromHeaders, isRateLimited, getStoredRateLimit } from './rateLimit.js';
 
 const GITHUB_API_BASE = 'https://api.github.com';
@@ -21,15 +21,26 @@ const USER_AGENT = 'RepoHealth/0.1';
  * @param {string} endpoint - Chemin de l'endpoint (ex: "/repos/owner/repo")
  * @param {object} [options]
  * @param {number} [options.ttlMs] - Durée de mise en cache personnalisée (optionnelle)
- * @returns {Promise<{ ok: boolean, data?: any, error?: string, resetAt?: number }>}
+ * @param {boolean} [options.forceRefresh] - Ignore et invalide le cache avant la requête
+ * @returns {Promise<{ ok: boolean, data?: any, error?: string, resetAt?: number, fromCache?: boolean, cachedAt?: number, age?: number, isStale?: boolean }>}
  */
 async function request(endpoint, options = {}) {
   const url = `${GITHUB_API_BASE}${endpoint}`;
 
   // 1. Vérification préalable du cache local
-  const cachedData = getCached(url);
+  const cachedData = getCached(url, { forceRefresh: options.forceRefresh });
   if (cachedData !== null) {
-    return { ok: true, data: cachedData, fromCache: true };
+    return {
+      ok: true,
+      data: cachedData.data,
+      fromCache: true,
+      cachedAt: cachedData.cachedAt,
+      age: cachedData.age,
+      isStale: cachedData.isStale
+    };
+  }
+  if (options.forceRefresh) {
+    invalidateCache(url);
   }
 
   // 2. Vérification proactive du rate limit si déjà bloqué
@@ -85,8 +96,8 @@ async function request(endpoint, options = {}) {
  * @param {string} owner 
  * @param {string} repo 
  */
-export async function fetchRepo(owner, repo) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
+export async function fetchRepo(owner, repo, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, options);
 }
 
 /**
@@ -94,8 +105,8 @@ export async function fetchRepo(owner, repo) {
  * @param {string} owner 
  * @param {string} repo 
  */
-export async function fetchReadme(owner, repo) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/readme`);
+export async function fetchReadme(owner, repo, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/readme`, options);
 }
 
 /**
@@ -104,9 +115,9 @@ export async function fetchReadme(owner, repo) {
  * @param {string} repo 
  * @param {string} [path=''] 
  */
-export async function fetchContents(owner, repo, path = '') {
+export async function fetchContents(owner, repo, path = '', options = {}) {
   const cleanPath = path === '.' || !path ? '' : `/${encodeURIComponent(path).replace(/%2F/g, '/')}`;
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents${cleanPath}`);
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents${cleanPath}`, options);
 }
 
 /**
@@ -114,8 +125,8 @@ export async function fetchContents(owner, repo, path = '') {
  * @param {string} owner 
  * @param {string} repo 
  */
-export async function fetchWorkflows(owner, repo) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows`);
+export async function fetchWorkflows(owner, repo, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows`, options);
 }
 
 /**
@@ -124,8 +135,8 @@ export async function fetchWorkflows(owner, repo) {
  * @param {string} repo 
  * @param {number} [perPage=5] 
  */
-export async function fetchReleases(owner, repo, perPage = 5) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases?per_page=${perPage}`);
+export async function fetchReleases(owner, repo, perPage = 5, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases?per_page=${perPage}`, options);
 }
 
 /**
@@ -134,8 +145,8 @@ export async function fetchReleases(owner, repo, perPage = 5) {
  * @param {string} repo 
  * @param {number} [perPage=30] 
  */
-export async function fetchContributors(owner, repo, perPage = 30) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contributors?per_page=${perPage}`);
+export async function fetchContributors(owner, repo, perPage = 30, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contributors?per_page=${perPage}`, options);
 }
 
 /**
@@ -145,8 +156,8 @@ export async function fetchContributors(owner, repo, perPage = 30) {
  * @param {string} [state='all'] 
  * @param {number} [perPage=100] 
  */
-export async function fetchIssues(owner, repo, state = 'all', perPage = 100) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=${encodeURIComponent(state)}&per_page=${perPage}`);
+export async function fetchIssues(owner, repo, state = 'all', perPage = 100, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=${encodeURIComponent(state)}&per_page=${perPage}`, options);
 }
 
 /**
@@ -155,8 +166,8 @@ export async function fetchIssues(owner, repo, state = 'all', perPage = 100) {
  * @param {string} repo 
  * @param {number} [perPage=100] 
  */
-export async function fetchCommits(owner, repo, perPage = 100) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?per_page=${perPage}`);
+export async function fetchCommits(owner, repo, perPage = 100, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits?per_page=${perPage}`, options);
 }
 
 /**
@@ -164,8 +175,8 @@ export async function fetchCommits(owner, repo, perPage = 100) {
  * @param {string} owner 
  * @param {string} repo 
  */
-export async function fetchLanguages(owner, repo) {
-  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/languages`);
+export async function fetchLanguages(owner, repo, options = {}) {
+  return request(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/languages`, options);
 }
 
 export { API_VERSION, USER_AGENT };

@@ -164,6 +164,14 @@
     "ariaLabel": "Basculer le thème clair/sombre"
   },
   "report": {
+    "cache": {
+      "banner": "Données en cache ({age})",
+      "fresh": "à l'instant",
+      "minutes": "il y a {n} min",
+      "hours": "il y a {n}h",
+      "refresh": "Rafraîchir",
+      "refreshing": "Rafraîchissement..."
+    },
     "badge": {
       "title": "Badge",
       "download": "Télécharger le SVG",

@@ -18,7 +18,7 @@
 - **Documentation Pillar (20% Weight)**: In-depth evaluation across 9 specific checks (README presence, size, headings, code blocks, LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, SUPPORT, CHANGELOG).
 - **Prioritized Recommendations**: Instant action plan listing missed points and priority tags (`high`, `medium`, `low`).
 - **GitHub REST API Client**: Built-in client targeting GitHub API v3 (`2022-11-28`) with strict headers.
-- **Smart Local Storage Cache**: Automatic 1-hour TTL caching preventing redundant API calls and conserving quota.
+- **Smart Local Storage Cache**: Automatic 15-minute TTL caching prevents redundant API calls and conserves quota; cached reports are labeled and can be refreshed on demand.
 - **Active Rate Limit Handling**: Parses `X-RateLimit-*` headers, remembers remaining calls in `localStorage`, and displays exact reset times.
 - **Capped API Orchestration**: Runs a maximum of 9 sequential calls per diagnostic with non-blocking handling for optional endpoints (such as `.github`).
 - **Privacy & Security First**: Strict Content Security Policy (CSP), zero telemetry, no third-party network requests, no cookies.
@@ -62,7 +62,7 @@ repohealth/
 │  ├─ main.js               # Main application coordinator (i18n, DOM, scoring UI)
 │  ├─ api/
 │  │  ├─ github.js          # REST v3 API client (mandatory headers, safe errors)
-│  │  ├─ cache.js           # LocalStorage wrapper with 1h TTL and auto cleanup
+│  │  ├─ cache.js           # LocalStorage wrapper with 15-minute TTL and auto cleanup
 │  │  ├─ rateLimit.js       # X-RateLimit header parser & status tracker
 │  │  └─ analyze.js         # Diagnostic orchestrator (capped at 9 requests)
 │  ├─ scoring/

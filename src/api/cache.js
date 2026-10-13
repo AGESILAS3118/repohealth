@@ -5,7 +5,7 @@
  */
 
 const CACHE_PREFIX = 'repochealth_cache:';
-const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 heure par défaut
+export const DEFAULT_TTL_MS = 15 * 60 * 1000;
 
 /**
  * Détecte si localStorage est disponible et fonctionnel.
@@ -30,11 +30,12 @@ function getStorage() {
  * Récupère une entrée du cache si elle existe et n'a pas expiré.
  * 
  * @param {string} url - URL clé de la ressource.
- * @returns {any | null} Données mises en cache ou null si absent/expiré.
+ * @param {{forceRefresh?: boolean}} [options]
+ * @returns {{data: any, cachedAt: number, age: number, isStale: boolean} | null}
  */
-export function getCached(url) {
+export function getCached(url, { forceRefresh = false } = {}) {
   const storage = getStorage();
-  if (!storage || !url) return null;
+  if (!storage || !url || forceRefresh) return null;
 
   try {
     const raw = storage.getItem(CACHE_PREFIX + url);
@@ -51,7 +52,16 @@ export function getCached(url) {
       return null;
     }
 
-    return record.data;
+    const cachedAt = typeof record.savedAt === 'number'
+      ? record.savedAt
+      : record.expiresAt - DEFAULT_TTL_MS;
+    const age = Math.max(0, Date.now() - cachedAt);
+    return {
+      data: record.data,
+      cachedAt,
+      age,
+      isStale: age > DEFAULT_TTL_MS
+    };
   } catch (_e) {
     // Entrée corrompue
     try {
@@ -66,17 +76,18 @@ export function getCached(url) {
  * 
  * @param {string} url - URL clé de la ressource.
  * @param {any} data - Données à sérialiser.
- * @param {number} [ttlMs=3600000] - Durée de vie en millisecondes (défaut 1h).
+ * @param {number} [ttlMs=DEFAULT_TTL_MS] - Durée de vie en millisecondes (défaut 15 min).
  * @returns {boolean} true si le stockage a réussi, sinon false.
  */
 export function setCached(url, data, ttlMs = DEFAULT_TTL_MS) {
   const storage = getStorage();
   if (!storage || !url) return false;
 
+  const savedAt = Date.now();
   const record = {
     data,
-    expiresAt: Date.now() + ttlMs,
-    savedAt: Date.now()
+    expiresAt: savedAt + ttlMs,
+    savedAt
   };
 
   try {
@@ -92,6 +103,20 @@ export function setCached(url, data, ttlMs = DEFAULT_TTL_MS) {
       return false;
     }
   }
+}
+
+/**
+ * Supprime une entrée précise du cache RepoHealth.
+ * @param {string} url - Clé de la ressource.
+ * @returns {boolean} true si l'entrée a été supprimée.
+ */
+export function invalidateCache(url) {
+  const storage = getStorage();
+  if (!storage || !url) return false;
+  const key = CACHE_PREFIX + url;
+  const existed = storage.getItem(key) !== null;
+  storage.removeItem(key);
+  return existed;
 }
 
 /**

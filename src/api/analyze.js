@@ -24,62 +24,67 @@ import { getStoredRateLimit } from './rateLimit.js';
  * @param {string} repo - Nom du dépôt.
  * @returns {Promise<{ ok: boolean, data?: object, error?: string, resetAt?: number }>}
  */
-export async function runAnalysis(owner, repo) {
+export async function runAnalysis(owner, repo, { forceRefresh = false } = {}) {
+  const requestOptions = { forceRefresh };
   // 1. fetchRepo (bloquant si 404 ou erreur)
-  const repoRes = await fetchRepo(owner, repo);
+  const repoRes = await fetchRepo(owner, repo, requestOptions);
   if (!repoRes.ok) {
     return repoRes;
   }
 
   // 2. fetchReadme (non bloquant si 404, bloquant si rate_limit)
-  const readmeRes = await fetchReadme(owner, repo);
+  const readmeRes = await fetchReadme(owner, repo, requestOptions);
   if (!readmeRes.ok) {
     if (readmeRes.error === 'rate_limit') return readmeRes;
   }
 
   // 3. fetchContents('.') (racine du projet)
-  const rootContentsRes = await fetchContents(owner, repo, '.');
+  const rootContentsRes = await fetchContents(owner, repo, '.', requestOptions);
   if (!rootContentsRes.ok) {
     if (rootContentsRes.error === 'rate_limit') return rootContentsRes;
   }
 
   // 4. fetchContents('.github') (dossier spécifique, souvent 404 si non présent)
-  const githubContentsRes = await fetchContents(owner, repo, '.github');
+  const githubContentsRes = await fetchContents(owner, repo, '.github', requestOptions);
   if (!githubContentsRes.ok) {
     if (githubContentsRes.error === 'rate_limit') return githubContentsRes;
   }
 
   // 5. fetchWorkflows (Actions)
-  const workflowsRes = await fetchWorkflows(owner, repo);
+  const workflowsRes = await fetchWorkflows(owner, repo, requestOptions);
   if (!workflowsRes.ok) {
     if (workflowsRes.error === 'rate_limit') return workflowsRes;
   }
 
   // 6. fetchReleases (dernières releases)
-  const releasesRes = await fetchReleases(owner, repo, 5);
+  const releasesRes = await fetchReleases(owner, repo, 5, requestOptions);
   if (!releasesRes.ok) {
     if (releasesRes.error === 'rate_limit') return releasesRes;
   }
 
   // 7. fetchContributors (contributeurs)
-  const contributorsRes = await fetchContributors(owner, repo, 30);
+  const contributorsRes = await fetchContributors(owner, repo, 30, requestOptions);
   if (!contributorsRes.ok) {
     if (contributorsRes.error === 'rate_limit') return contributorsRes;
   }
 
   // 8. fetchIssues (issues ouvertes/fermées)
-  const issuesRes = await fetchIssues(owner, repo, 'all', 100);
+  const issuesRes = await fetchIssues(owner, repo, 'all', 100, requestOptions);
   if (!issuesRes.ok) {
     if (issuesRes.error === 'rate_limit') return issuesRes;
   }
 
   // 9. fetchCommits (historique récent)
-  const commitsRes = await fetchCommits(owner, repo, 100);
+  const commitsRes = await fetchCommits(owner, repo, 100, requestOptions);
   if (!commitsRes.ok) {
     if (commitsRes.error === 'rate_limit') return commitsRes;
   }
 
   // Construction de l'objet de diagnostic structuré
+  const cachedResponses = [
+    repoRes, readmeRes, rootContentsRes, githubContentsRes, workflowsRes,
+    releasesRes, contributorsRes, issuesRes, commitsRes
+  ].filter((response) => response.fromCache);
   const result = {
     repo: repoRes.data || null,
     readme: readmeRes.ok ? readmeRes.data : null,
@@ -92,7 +97,11 @@ export async function runAnalysis(owner, repo) {
     commits: commitsRes.ok ? commitsRes.data : null,
     rateLimit: getStoredRateLimit(),
     fetchedAt: new Date().toISOString(),
-    apiVersion: API_VERSION
+    apiVersion: API_VERSION,
+    cache: {
+      fromCache: cachedResponses.length > 0,
+      age: cachedResponses.reduce((oldest, response) => Math.max(oldest, response.age || 0), 0)
+    }
   };
 
   return {

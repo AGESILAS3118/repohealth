@@ -82,6 +82,16 @@ test('analyze.js - orchestre au maximum 9 requêtes et retourne la structure att
   assert.ok(result.data.fetchedAt);
   assert.equal(result.data.apiVersion, '2022-11-28');
 
+  const cachedResult = await runAnalysis('octocat', 'Hello-World');
+  assert.equal(cachedResult.ok, true);
+  assert.equal(cachedResult.data.cache.fromCache, true);
+  assert.equal(calledUrls.length, 10, 'La seconde analyse réutilise les réponses en cache');
+
+  const refreshedResult = await runAnalysis('octocat', 'Hello-World', { forceRefresh: true });
+  assert.equal(refreshedResult.ok, true);
+  assert.equal(refreshedResult.data.cache.fromCache, false);
+  assert.equal(calledUrls.length, 19, 'forceRefresh renouvelle les 9 endpoints');
+
   globalThis.fetch = originalFetch;
 });
 

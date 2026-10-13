@@ -101,8 +101,9 @@ L’interface est conçue selon une approche mobile-first. Le formulaire de sais
 
 ### 6.2 Cache et préférences
 
-- Mettre en cache les réponses ou résultats compatibles pendant une heure, dans la limite des règles de fraîcheur des données.
+- Mettre en cache les réponses ou résultats compatibles pendant 15 minutes par défaut, dans la limite des règles de fraîcheur des données.
 - Utiliser `localStorage` pour les préférences et les analyses récentes.
+- Signaler dans le rapport lorsque des données proviennent du cache et permettre à l’utilisateur de forcer leur actualisation.
 - Gérer les erreurs réseau, les réponses invalides, les dépôts inexistants et les limites de débit de l’API GitHub.
 - Ne pas conserver de jeton GitHub dans la V1.
 

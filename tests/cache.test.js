@@ -27,7 +27,10 @@ test('cache.js - setCached et getCached avec TTL valide', async () => {
   assert.equal(success, true);
 
   const cached = getCached(url);
-  assert.deepEqual(cached, sampleData);
+  assert.deepEqual(cached.data, sampleData);
+  assert.ok(cached.age < 5000);
+  assert.equal(typeof cached.cachedAt, 'number');
+  assert.equal(cached.isStale, false);
 });
 
 test('cache.js - expiration du TTL', async () => {
@@ -84,4 +87,54 @@ test('cache.js - fallback sans crash si localStorage est absent', async () => {
   assert.equal(clearAll(), 0);
 
   globalThis.localStorage = originalStorage;
+});
+
+test('cache.js - forceRefresh ignore une entrée encore valide', async () => {
+  globalThis.localStorage = createMockStorage();
+  const { getCached, setCached } = await import(`../src/api/cache.js?t=${Date.now()}_6`);
+  const url = 'https://api.github.com/repos/octocat/refresh';
+  setCached(url, { version: 1 });
+
+  assert.equal(getCached(url, { forceRefresh: true }), null);
+  assert.equal(getCached(url).data.version, 1, 'L’option de lecture ne supprime pas l’entrée');
+});
+
+test('cache.js - invalidateCache supprime uniquement la clé ciblée', async () => {
+  globalThis.localStorage = createMockStorage();
+  const { getCached, setCached, invalidateCache } = await import(`../src/api/cache.js?t=${Date.now()}_7`);
+  const firstUrl = 'https://api.github.com/repos/octocat/first';
+  const secondUrl = 'https://api.github.com/repos/octocat/second';
+  setCached(firstUrl, { id: 1 });
+  setCached(secondUrl, { id: 2 });
+
+  assert.equal(invalidateCache(firstUrl), true);
+  assert.equal(getCached(firstUrl), null);
+  assert.deepEqual(getCached(secondUrl).data, { id: 2 });
+  assert.equal(invalidateCache(firstUrl), false);
+});
+
+test('cache.js - le TTL par défaut est de 15 minutes', async () => {
+  globalThis.localStorage = createMockStorage();
+  const { DEFAULT_TTL_MS, setCached } = await import(`../src/api/cache.js?t=${Date.now()}_8`);
+  const url = 'https://api.github.com/repos/octocat/default-ttl';
+
+  assert.equal(DEFAULT_TTL_MS, 900000);
+  setCached(url, { ok: true });
+  const record = JSON.parse(globalThis.localStorage.getItem(`repochealth_cache:${url}`));
+  assert.equal(record.expiresAt - record.savedAt, DEFAULT_TTL_MS);
+});
+
+test('cache.js - expose les entrées anciennes encore valides comme obsolètes', async () => {
+  globalThis.localStorage = createMockStorage();
+  const { DEFAULT_TTL_MS, getCached, setCached } = await import(`../src/api/cache.js?t=${Date.now()}_9`);
+  const url = 'https://api.github.com/repos/octocat/stale';
+  setCached(url, { ok: true }, DEFAULT_TTL_MS * 2);
+  const key = `repochealth_cache:${url}`;
+  const record = JSON.parse(globalThis.localStorage.getItem(key));
+  record.savedAt -= DEFAULT_TTL_MS + 1000;
+  globalThis.localStorage.setItem(key, JSON.stringify(record));
+
+  const cached = getCached(url);
+  assert.equal(cached.isStale, true);
+  assert.ok(cached.age > DEFAULT_TTL_MS);
 });

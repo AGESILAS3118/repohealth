@@ -39,7 +39,7 @@ globalThis.window = {
   }
 };
 
-const { renderScoreReport } = await import('../src/main.js');
+const { formatCacheAge, renderScoreReport } = await import('../src/main.js');
 
 test('main UI - affiche les statuts indisponibles sans score nul ni barre de progression', () => {
   renderScoreReport({}, {
@@ -153,6 +153,110 @@ test('main UI - ne propose pas de badge si le score global est indisponible', ()
   });
   assert.doesNotMatch(resultsContainer.innerHTML, /badge-share/);
   assert.doesNotMatch(resultsContainer.innerHTML, /data-report-export/);
+});
+
+test('main UI - affiche un bandeau accessible uniquement pour une analyse en cache', () => {
+  const analysis = {
+    repo: { owner: { login: 'octocat' }, name: 'hello-world' },
+    cache: { fromCache: true, age: 5 * 60000 }
+  };
+  const report = {
+    score: 80,
+    grade: 'A',
+    engineVersion: ENGINE_VERSION,
+    pillars: []
+  };
+
+  renderScoreReport(analysis, report);
+  assert.match(resultsContainer.innerHTML, /class="cache-banner" role="status" aria-live="polite"/);
+  assert.match(resultsContainer.innerHTML, /report\.cache\.banner/);
+  assert.match(resultsContainer.innerHTML, /data-cache-refresh/);
+
+  renderScoreReport({ ...analysis, cache: { fromCache: false, age: 0 } }, report);
+  assert.doesNotMatch(resultsContainer.innerHTML, /cache-banner|data-cache-refresh/);
+});
+
+test('main UI - formate l’âge du cache en minutes et heures', () => {
+  const translations = {
+    'report.cache.fresh': "à l'instant",
+    'report.cache.minutes': 'il y a {n} min',
+    'report.cache.hours': 'il y a {n}h'
+  };
+  const translate = (key) => translations[key];
+
+  assert.equal(formatCacheAge(59000, translate), "à l'instant");
+  assert.equal(formatCacheAge(5 * 60000, translate), 'il y a 5 min');
+  assert.equal(formatCacheAge(59 * 60000, translate), 'il y a 59 min');
+  assert.equal(formatCacheAge(60 * 60000, translate), 'il y a 1h');
+  assert.equal(formatCacheAge(125 * 60000, translate), 'il y a 2h');
+});
+
+test('main UI - le bouton Rafraîchir contourne le cache et relance l’analyse', async () => {
+  const { setCached, getCached } = await import('../src/api/cache.js');
+  const url = 'https://api.github.com/repos/octocat/hello-world';
+  const originalStorage = globalThis.localStorage;
+  const originalFetch = globalThis.fetch;
+  const originalQuerySelector = document.querySelector;
+  const button = {
+    disabled: false,
+    textContent: '',
+    addEventListener(event, callback) {
+      if (event === 'click') this.onClick = callback;
+    }
+  };
+  const status = { textContent: '' };
+  let requestCount = 0;
+
+  globalThis.localStorage = {
+    values: new Map(),
+    getItem(key) { return this.values.get(key) ?? null; },
+    setItem(key, value) { this.values.set(key, String(value)); },
+    removeItem(key) { this.values.delete(key); },
+    key(index) { return [...this.values.keys()][index] ?? null; },
+    get length() { return this.values.size; }
+  };
+  setCached(url, { name: 'hello-world' });
+  globalThis.fetch = async () => {
+    requestCount++;
+    return new Response(JSON.stringify({ message: 'Not Found' }), {
+      status: 404,
+      headers: {
+        'x-ratelimit-limit': '60',
+        'x-ratelimit-remaining': '59',
+        'x-ratelimit-reset': String(Math.floor((Date.now() + 3600000) / 1000))
+      }
+    });
+  };
+  document.querySelector = (selector) => {
+    if (selector === '[data-cache-refresh]') return button;
+    if (selector === '[data-cache-status]') return status;
+    return null;
+  };
+
+  try {
+    renderScoreReport({
+      repo: { owner: { login: 'octocat' }, name: 'hello-world' },
+      cache: { fromCache: true, age: 120000 }
+    }, {
+      score: 80,
+      grade: 'A',
+      engineVersion: ENGINE_VERSION,
+      pillars: []
+    });
+
+    const refreshPromise = button.onClick();
+    assert.equal(button.disabled, true);
+    assert.match(status.innerHTML, /spinner/);
+    await refreshPromise;
+
+    assert.equal(requestCount, 1, 'Le refresh doit ignorer l’entrée en cache et appeler le réseau');
+    assert.equal(getCached(url), null, 'L’entrée en cache ciblée est invalidée avant la requête');
+    assert.equal(button.disabled, false);
+  } finally {
+    globalThis.localStorage = originalStorage;
+    globalThis.fetch = originalFetch;
+    document.querySelector = originalQuerySelector;
+  }
 });
 
 test('main UI - télécharge le JSON et annonce la confirmation', () => {
