@@ -13,6 +13,39 @@ function createMockStorage() {
   };
 }
 
+function createSuccessfulFetch(packageScripts, rootContents = []) {
+  return async (url) => {
+    let payload = {};
+    if (url.endsWith('/repos/octocat/script-test')) {
+      payload = { name: 'script-test' };
+    } else if (url.endsWith('/contents/package.json')) {
+      payload = {
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from(JSON.stringify({ scripts: packageScripts })).toString('base64')
+      };
+    } else if (url.endsWith('/contents')) {
+      payload = rootContents;
+    } else if (url.endsWith('/contents/.github')) {
+      payload = [];
+    } else if (url.endsWith('/readme')) {
+      payload = { name: 'README.md' };
+    } else if (url.endsWith('/actions/workflows')) {
+      payload = { total_count: 0, workflows: [] };
+    } else if (url.includes('/releases') || url.includes('/contributors') ||
+      url.includes('/issues') || url.includes('/commits')) {
+      payload = [];
+    }
+    return new Response(JSON.stringify(payload), {
+      headers: {
+        'x-ratelimit-limit': '60',
+        'x-ratelimit-remaining': '50',
+        'x-ratelimit-reset': String(Math.floor((Date.now() + 3600000) / 1000))
+      }
+    });
+  };
+}
+
 test('analyze.js - orchestre les endpoints principaux et package.json', async () => {
   globalThis.localStorage = createMockStorage();
   const originalFetch = globalThis.fetch;
@@ -111,6 +144,46 @@ test('analyze.js - orchestre les endpoints principaux et package.json', async ()
   assert.equal(calledUrls.length, 21, 'forceRefresh renouvelle les dix endpoints mis en cache');
 
   globalThis.fetch = originalFetch;
+});
+
+test('analyze.js - un script npm alternatif node --test évite toute lecture de test', async () => {
+  globalThis.localStorage = createMockStorage();
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(url);
+    return createSuccessfulFetch({ 'test:unit': 'node --test' })(url, options);
+  };
+
+  const { runAnalysis } = await import(`../src/api/analyze.js?t=${Date.now()}_alternate-script`);
+  const result = await runAnalysis('octocat', 'script-test');
+
+  assert.equal(result.ok, true);
+  assert.equal(result.data.packageJson.scripts['test:unit'], 'node --test');
+  assert.equal(requests.filter((url) => /\/contents\/(?:tests|test|__tests__)(?:\/|$)/.test(url)).length, 0);
+  assert.equal(requests.length, 10);
+  globalThis.fetch = originalFetch;
+});
+
+test('analyze.js - journalise le nombre de requêtes en environnement local', async () => {
+  globalThis.localStorage = createMockStorage();
+  const originalFetch = globalThis.fetch;
+  const originalLocation = globalThis.location;
+  const originalDebug = console.debug;
+  const messages = [];
+  globalThis.location = { hostname: 'localhost' };
+  console.debug = (message) => messages.push(message);
+  globalThis.fetch = createSuccessfulFetch({ test: 'node --test' });
+
+  const { runAnalysis } = await import(`../src/api/analyze.js?t=${Date.now()}_debug-count`);
+  const result = await runAnalysis('octocat', 'script-test');
+
+  assert.equal(result.ok, true);
+  assert.ok(messages.some((message) => message.includes('10/12')));
+  globalThis.fetch = originalFetch;
+  console.debug = originalDebug;
+  if (originalLocation === undefined) delete globalThis.location;
+  else globalThis.location = originalLocation;
 });
 
 test('analyze.js - charge un fichier de test pour détecter les imports node:test', async () => {

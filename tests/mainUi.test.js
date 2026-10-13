@@ -177,13 +177,9 @@ test('main UI - affiche un bandeau accessible uniquement pour une analyse en cac
   assert.doesNotMatch(resultsContainer.innerHTML, /cache-banner|data-cache-refresh/);
 });
 
-test('main UI - traduit le lien GitHub en français et en anglais', async () => {
+async function renderGithubLinkForLanguage(language) {
   const originalFetch = globalThis.fetch;
   const originalStorage = globalThis.localStorage;
-  const translations = {
-    fr: { report: { view_on_github: 'Voir sur GitHub ↗' } },
-    en: { report: { view_on_github: 'View on GitHub ↗' } }
-  };
   globalThis.localStorage = {
     getItem() { return null; },
     setItem() {},
@@ -191,7 +187,11 @@ test('main UI - traduit le lien GitHub en français et en anglais', async () => 
   };
   globalThis.fetch = async (url) => ({
     ok: true,
-    json: async () => translations[url.includes('/en.json') ? 'en' : 'fr']
+    json: async () => ({
+      report: {
+        view_on_github: url.includes('/en.json') ? 'View on GitHub ↗' : 'Voir sur GitHub ↗'
+      }
+    })
   });
 
   try {
@@ -205,17 +205,22 @@ test('main UI - traduit le lien GitHub en français et en anglais', async () => 
       pillars: []
     };
 
-    await setLanguage('en');
+    await setLanguage(language);
     renderScoreReport(analysis, report);
-    assert.match(resultsContainer.innerHTML, /View on GitHub ↗/);
-
-    await setLanguage('fr');
-    renderScoreReport(analysis, report);
-    assert.match(resultsContainer.innerHTML, /Voir sur GitHub ↗/);
+    return resultsContainer.innerHTML;
   } finally {
+    await setLanguage('fr');
     globalThis.fetch = originalFetch;
     globalThis.localStorage = originalStorage;
   }
+}
+
+test('main UI - affiche le lien View on GitHub en anglais', async () => {
+  assert.match(await renderGithubLinkForLanguage('en'), /View on GitHub ↗/);
+});
+
+test('main UI - affiche le lien Voir sur GitHub en français', async () => {
+  assert.match(await renderGithubLinkForLanguage('fr'), /Voir sur GitHub ↗/);
 });
 
 test('main UI - formate l’âge du cache en minutes et heures', () => {
