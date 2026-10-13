@@ -14,6 +14,7 @@ import { updateRateLimitFromHeaders, isRateLimited, getStoredRateLimit } from '.
 const GITHUB_API_BASE = 'https://api.github.com';
 const API_VERSION = '2022-11-28';
 const USER_AGENT = 'RepoHealth/0.1';
+export const MAX_API_CALLS = 12;
 
 /**
  * Exécute une requête GET vers l'API GitHub avec cache et gestion d'erreurs normalisée.
@@ -22,6 +23,7 @@ const USER_AGENT = 'RepoHealth/0.1';
  * @param {object} [options]
  * @param {number} [options.ttlMs] - Durée de mise en cache personnalisée (optionnelle)
  * @param {boolean} [options.forceRefresh] - Ignore et invalide le cache avant la requête
+ * @param {{calls: number}} [options.requestBudget] - Budget partagé pour une analyse
  * @returns {Promise<{ ok: boolean, data?: any, error?: string, resetAt?: number, fromCache?: boolean, cachedAt?: number, age?: number, isStale?: boolean }>}
  */
 async function request(endpoint, options = {}) {
@@ -49,6 +51,10 @@ async function request(endpoint, options = {}) {
     return { ok: false, error: 'rate_limit', resetAt };
   }
 
+  if (options.requestBudget && options.requestBudget.calls >= MAX_API_CALLS) {
+    return { ok: false, error: 'request_limit' };
+  }
+
   // 3. Appel réseau
   try {
     const headers = {
@@ -57,6 +63,7 @@ async function request(endpoint, options = {}) {
       'User-Agent': USER_AGENT
     };
 
+    if (options.requestBudget) options.requestBudget.calls++;
     const response = await fetch(url, { method: 'GET', headers });
 
     // Mise à jour de l'état du rate limit à chaque réponse

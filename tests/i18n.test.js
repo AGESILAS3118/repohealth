@@ -96,3 +96,12 @@ test('i18n - toutes les clés report.* utilisées par le rendu ont une traductio
     }
   }
 });
+
+test('i18n - le lien GitHub est traduit en français et en anglais', () => {
+  const fr = JSON.parse(readFileSync(resolve(__dirname, '../src/i18n/fr.json'), 'utf-8'));
+  const en = JSON.parse(readFileSync(resolve(__dirname, '../src/i18n/en.json'), 'utf-8'));
+
+  assert.equal(fr.report.view_on_github, 'Voir sur GitHub ↗');
+  assert.equal(en.report.view_on_github, 'View on GitHub ↗');
+  assert.deepEqual(Object.keys(fr.report).sort(), Object.keys(en.report).sort());
+});

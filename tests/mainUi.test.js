@@ -5,6 +5,7 @@ import { ENGINE_VERSION } from '../src/scoring/version.js';
 const resultsContainer = { innerHTML: '', hidden: true };
 globalThis.document = {
   readyState: 'loading',
+  documentElement: {},
   addEventListener() {},
   getElementById(id) {
     return id === 'results-section' ? resultsContainer : null;
@@ -39,7 +40,7 @@ globalThis.window = {
   }
 };
 
-const { formatCacheAge, renderScoreReport } = await import('../src/main.js');
+const { formatCacheAge, renderScoreReport, setLanguage } = await import('../src/main.js');
 
 test('main UI - affiche les statuts indisponibles sans score nul ni barre de progression', () => {
   renderScoreReport({}, {
@@ -174,6 +175,47 @@ test('main UI - affiche un bandeau accessible uniquement pour une analyse en cac
 
   renderScoreReport({ ...analysis, cache: { fromCache: false, age: 0 } }, report);
   assert.doesNotMatch(resultsContainer.innerHTML, /cache-banner|data-cache-refresh/);
+});
+
+test('main UI - traduit le lien GitHub en français et en anglais', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalStorage = globalThis.localStorage;
+  const translations = {
+    fr: { report: { view_on_github: 'Voir sur GitHub ↗' } },
+    en: { report: { view_on_github: 'View on GitHub ↗' } }
+  };
+  globalThis.localStorage = {
+    getItem() { return null; },
+    setItem() {},
+    removeItem() {}
+  };
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    json: async () => translations[url.includes('/en.json') ? 'en' : 'fr']
+  });
+
+  try {
+    const analysis = {
+      repo: { owner: { login: 'octocat' }, name: 'hello-world' }
+    };
+    const report = {
+      score: null,
+      grade: null,
+      engineVersion: ENGINE_VERSION,
+      pillars: []
+    };
+
+    await setLanguage('en');
+    renderScoreReport(analysis, report);
+    assert.match(resultsContainer.innerHTML, /View on GitHub ↗/);
+
+    await setLanguage('fr');
+    renderScoreReport(analysis, report);
+    assert.match(resultsContainer.innerHTML, /Voir sur GitHub ↗/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.localStorage = originalStorage;
+  }
 });
 
 test('main UI - formate l’âge du cache en minutes et heures', () => {

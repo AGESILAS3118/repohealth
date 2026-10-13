@@ -164,6 +164,7 @@
     "ariaLabel": "Toggle light/dark theme"
   },
   "report": {
+    "view_on_github": "View on GitHub ↗",
     "cache": {
       "banner": "Cached data ({age})",
       "fresh": "just now",

@@ -13,9 +13,12 @@ import {
   fetchContributors,
   fetchIssues,
   fetchCommits,
-  API_VERSION
+  API_VERSION,
+  MAX_API_CALLS
 } from './github.js';
 import { getStoredRateLimit } from './rateLimit.js';
+
+export { MAX_API_CALLS };
 
 const TEST_DIRECTORIES = new Set(['tests', 'test', '__tests__']);
 const TEST_FILE_PATTERN = /\.test\.(?:js|mjs|cjs)$/i;
@@ -66,35 +69,34 @@ function needsTestFileInspection(packageJson, rootContents) {
 
 async function getNodeTestFiles(owner, repo, rootContents, options) {
   const testFiles = [];
-  const directories = rootContents
+  const directory = rootContents
     .filter((item) => item?.type === 'dir' && TEST_DIRECTORIES.has(String(item.name).toLowerCase()))
-    .map((item) => item.name);
+    .map((item) => item.name)[0];
+  if (!directory) return { testFiles };
 
-  while (directories.length > 0) {
-    const directory = directories.shift();
-    const listing = await fetchContents(owner, repo, directory, options);
-    if (!listing.ok) {
-      if (listing.error === 'rate_limit') return { testFiles, error: listing };
+  const listing = await fetchContents(owner, repo, directory, options);
+  if (!listing.ok) {
+    if (listing.error === 'rate_limit') return { testFiles, error: listing };
+    return { testFiles };
+  }
+
+  const candidates = (Array.isArray(listing.data) ? listing.data : [])
+    .filter((item) => item.type === 'file' && TEST_FILE_PATTERN.test(String(item.name)))
+    .slice(0, 2);
+
+  for (const item of candidates) {
+    const path = `${directory}/${item.name}`;
+    const fileResponse = await fetchContents(owner, repo, path, options);
+    if (!fileResponse.ok) {
+      if (fileResponse.error === 'rate_limit') return { testFiles, error: fileResponse };
+      if (fileResponse.error === 'request_limit') break;
       continue;
     }
-
-    for (const item of Array.isArray(listing.data) ? listing.data : []) {
-      const path = `${directory}/${item.name}`;
-      if (item.type === 'dir') {
-        directories.push(path);
-      } else if (item.type === 'file' && TEST_FILE_PATTERN.test(String(item.name))) {
-        const fileResponse = await fetchContents(owner, repo, path, options);
-        if (!fileResponse.ok) {
-          if (fileResponse.error === 'rate_limit') return { testFiles, error: fileResponse };
-          continue;
-        }
-        const content = decodeGitHubFile(fileResponse);
-        if (content !== null) {
-          testFiles.push({ path, content });
-          if (/(?:\bfrom\s*['"]node:test['"]|\brequire\(\s*['"]node:test['"]\s*\))/.test(content)) {
-            return { testFiles };
-          }
-        }
+    const content = decodeGitHubFile(fileResponse);
+    if (content !== null) {
+      testFiles.push({ path, content });
+      if (/(?:\bfrom\s*['"]node:test['"]|\brequire\(\s*['"]node:test['"]\s*\))/.test(content)) {
+        return { testFiles };
       }
     }
   }
@@ -103,14 +105,25 @@ async function getNodeTestFiles(owner, repo, rootContents, options) {
 }
 
 /**
- * Lance l'analyse complète d'un dépôt en orchestrant jusqu'à 9 requêtes.
+ * Lance l'analyse d'un dépôt avec un plafond global de requêtes API.
  * 
  * @param {string} owner - Propriétaire du dépôt.
  * @param {string} repo - Nom du dépôt.
  * @returns {Promise<{ ok: boolean, data?: object, error?: string, resetAt?: number }>}
  */
 export async function runAnalysis(owner, repo, { forceRefresh = false } = {}) {
-  const requestOptions = { forceRefresh };
+  const requestBudget = { calls: 0 };
+  try {
+    return await performAnalysis(owner, repo, { forceRefresh, requestBudget });
+  } finally {
+    const hostname = globalThis.location?.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      console.debug(`[RepoHealth] GitHub API requests: ${requestBudget.calls}/${MAX_API_CALLS}`);
+    }
+  }
+}
+
+async function performAnalysis(owner, repo, requestOptions) {
   // 1. fetchRepo (bloquant si 404 ou erreur)
   const repoRes = await fetchRepo(owner, repo, requestOptions);
   if (!repoRes.ok) {
@@ -127,16 +140,6 @@ export async function runAnalysis(owner, repo, { forceRefresh = false } = {}) {
   const rootContentsRes = await fetchContents(owner, repo, '.', requestOptions);
   if (!rootContentsRes.ok) {
     if (rootContentsRes.error === 'rate_limit') return rootContentsRes;
-  }
-
-  const packageJsonRes = await fetchContents(owner, repo, 'package.json', requestOptions);
-  if (packageJsonRes.error === 'rate_limit') return packageJsonRes;
-  const packageJson = parsePackageJson(packageJsonRes);
-  let testFiles = [];
-  if (needsTestFileInspection(packageJson, rootContentsRes.data || [])) {
-    const testFilesResult = await getNodeTestFiles(owner, repo, rootContentsRes.data || [], requestOptions);
-    if (testFilesResult.error) return testFilesResult.error;
-    testFiles = testFilesResult.testFiles;
   }
 
   // 4. fetchContents('.github') (dossier spécifique, souvent 404 si non présent)
@@ -173,6 +176,16 @@ export async function runAnalysis(owner, repo, { forceRefresh = false } = {}) {
   const commitsRes = await fetchCommits(owner, repo, 100, requestOptions);
   if (!commitsRes.ok) {
     if (commitsRes.error === 'rate_limit') return commitsRes;
+  }
+
+  const packageJsonRes = await fetchContents(owner, repo, 'package.json', requestOptions);
+  if (packageJsonRes.error === 'rate_limit') return packageJsonRes;
+  const packageJson = parsePackageJson(packageJsonRes);
+  let testFiles = [];
+  if (needsTestFileInspection(packageJson, rootContentsRes.data || [])) {
+    const testFilesResult = await getNodeTestFiles(owner, repo, rootContentsRes.data || [], requestOptions);
+    if (testFilesResult.error) return testFilesResult.error;
+    testFiles = testFilesResult.testFiles;
   }
 
   // Construction de l'objet de diagnostic structuré

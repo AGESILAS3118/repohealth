@@ -98,7 +98,7 @@ function detectInitialLanguage() {
  * Applique les traductions à l'ensemble du DOM.
  * @param {string} lang - Langue à appliquer ('fr' ou 'en')
  */
-async function setLanguage(lang) {
+export async function setLanguage(lang) {
   currentLang = lang;
   localStorage.setItem('repohealth_lang', lang);
   document.documentElement.lang = lang;
@@ -490,7 +490,7 @@ export function renderScoreReport(analysis, report) {
              target="_blank"
              rel="noopener noreferrer"
              class="btn-secondary">
-             Voir sur GitHub ↗
+             ${escapeHtml(t('report.view_on_github'))}
           </a>
         </div>
       </div>

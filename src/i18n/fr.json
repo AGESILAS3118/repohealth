@@ -164,6 +164,7 @@
     "ariaLabel": "Basculer le thème clair/sombre"
   },
   "report": {
+    "view_on_github": "Voir sur GitHub ↗",
     "cache": {
       "banner": "Données en cache ({age})",
       "fresh": "à l'instant",

@@ -65,12 +65,22 @@ test('analyze.js - orchestre les endpoints principaux et package.json', async ()
     });
   };
 
-  const { runAnalysis } = await import(`../src/api/analyze.js?t=${Date.now()}_1`);
+  let testDirectoryListings = 0;
+  let testFileReads = 0;
+  const originalFetchWithTracking = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (url.includes('/contents/tests')) testDirectoryListings++;
+    if (/\/contents\/tests\/.+\.test\./.test(url)) testFileReads++;
+    return originalFetchWithTracking(url);
+  };
+
+  const { MAX_API_CALLS, runAnalysis } = await import(`../src/api/analyze.js?t=${Date.now()}_1`);
   const result = await runAnalysis('octocat', 'Hello-World');
 
   assert.equal(result.ok, true);
   assert.ok(result.data);
 
+  assert.equal(MAX_API_CALLS, 12);
   assert.equal(calledUrls.length, 10, 'Les 9 endpoints principaux et package.json sont récupérés');
 
   // Vérifier la présence de toutes les propriétés du rapport
@@ -87,6 +97,8 @@ test('analyze.js - orchestre les endpoints principaux et package.json', async ()
   assert.ok(result.data.fetchedAt);
   assert.equal(result.data.apiVersion, '2022-11-28');
   assert.equal(result.data.packageJson.scripts.test, 'node --test');
+  assert.equal(testDirectoryListings, 0, 'node:test déclaré dans package.json évite l’inspection des tests');
+  assert.equal(testFileReads, 0);
 
   const cachedResult = await runAnalysis('octocat', 'Hello-World');
   assert.equal(cachedResult.ok, true);
@@ -159,6 +171,75 @@ test('analyze.js - charge un fichier de test pour détecter les imports node:tes
     path: 'tests/sample.test.js',
     content: nodeTestSource
   }]);
+
+  globalThis.fetch = originalFetch;
+});
+
+test('analyze.js - plafonne à 12 appels même avec 50 fichiers de test', async () => {
+  globalThis.localStorage = createMockStorage();
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  const testFilePaths = [];
+  const testFiles = Array.from({ length: 50 }, (_, index) => ({
+    name: `suite-${String(index).padStart(2, '0')}.test.js`,
+    type: 'file'
+  }));
+
+  globalThis.fetch = async (url) => {
+    requests.push(url);
+    let payload = {};
+    let status = 200;
+    if (url.endsWith('/contents/package.json')) {
+      payload = {
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from(JSON.stringify({ scripts: { test: 'node custom-runner.js' } })).toString('base64')
+      };
+    } else if (url.endsWith('/contents/tests')) {
+      payload = testFiles;
+    } else if (/\/contents\/tests\/suite-/.test(url)) {
+      testFilePaths.push(url);
+      payload = {
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from('assert.equal(1, 1);').toString('base64')
+      };
+    } else if (url.endsWith('/repos/octocat/large-tests')) {
+      payload = { name: 'large-tests' };
+    } else if (url.endsWith('/readme')) {
+      payload = { name: 'README.md' };
+    } else if (url.endsWith('/contents')) {
+      payload = [{ name: 'tests', type: 'dir' }];
+    } else if (url.endsWith('/contents/.github')) {
+      payload = [];
+    } else if (url.endsWith('/actions/workflows')) {
+      payload = { total_count: 0, workflows: [] };
+    } else if (url.includes('/releases') || url.includes('/issues') || url.includes('/commits')) {
+      payload = [];
+    } else if (url.includes('/contributors')) {
+      payload = [{ login: 'octocat' }];
+    }
+    return new Response(JSON.stringify(payload), {
+      status,
+      headers: {
+        'x-ratelimit-limit': '60',
+        'x-ratelimit-remaining': '50',
+        'x-ratelimit-reset': String(Math.floor((Date.now() + 3600000) / 1000))
+      }
+    });
+  };
+
+  const { MAX_API_CALLS, runAnalysis } = await import(`../src/api/analyze.js?t=${Date.now()}_cap`);
+  const result = await runAnalysis('octocat', 'large-tests');
+
+  assert.equal(result.ok, true);
+  assert.equal(requests.length, MAX_API_CALLS);
+  assert.ok(requests.length <= 12);
+  assert.ok(testFilePaths.length <= 2);
+  assert.equal(testFilePaths.length, 1, 'Le listing des tests consomme une requête du budget global');
+  assert.match(testFilePaths[0], /suite-00\.test\.js/);
+  assert.ok(Array.isArray(result.data.testFiles));
+  assert.equal(result.data.testFiles.length, 1);
 
   globalThis.fetch = originalFetch;
 });
