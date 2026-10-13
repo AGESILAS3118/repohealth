@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#090d16"/>
+      <stop offset="1" stop-color="#111c2d"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#0284c7"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect width="750" height="1334" fill="url(#bg)"/>
+  <rect width="750" height="94" fill="#0d1421"/>
+  <circle cx="55" cy="47" r="27" fill="url(#brand)"/>
+  <path d="M36 48h12l7-12 8 23 7-11h13" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="100" y="57" fill="#f8fafc" font-family="Arial,sans-serif" font-size="28" font-weight="700">RepoHealth</text>
+  <rect x="565" y="25" width="72" height="44" rx="12" fill="#172335" stroke="#34445b"/>
+  <text x="601" y="54" text-anchor="middle" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="18">FR</text>
+  <rect x="647" y="25" width="72" height="44" rx="12" fill="#172335" stroke="#34445b"/>
+  <text x="683" y="54" text-anchor="middle" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="18">☾</text>
+  <text x="375" y="154" text-anchor="middle" fill="#38bdf8" font-family="Arial,sans-serif" font-size="16" font-weight="700" letter-spacing="2">REPOHEALTH V1.0</text>
+  <text x="375" y="205" text-anchor="middle" fill="#f8fafc" font-family="Arial,sans-serif" font-size="32" font-weight="700">Repository Health</text>
+  <text x="375" y="246" text-anchor="middle" fill="#f8fafc" font-family="Arial,sans-serif" font-size="32" font-weight="700">Report</text>
+  <rect x="34" y="278" width="682" height="122" rx="18" fill="#111c2d" stroke="#26364c"/>
+  <text x="66" y="327" fill="#94a3b8" font-family="Arial,sans-serif" font-size="19">GitHub repository</text>
+  <text x="66" y="366" fill="#e2e8f0" font-family="Arial,sans-serif" font-size="22">octocat/hello-world</text>
+  <rect x="34" y="418" width="682" height="64" rx="14" fill="url(#brand)"/>
+  <text x="375" y="459" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="22" font-weight="700">Analyze repository</text>
+  <rect x="34" y="508" width="682" height="235" rx="20" fill="#111c2d" stroke="#26364c"/>
+  <text x="72" y="559" fill="#94a3b8" font-family="Arial,sans-serif" font-size="18">OVERALL SCORE</text>
+  <text x="72" y="650" fill="#f8fafc" font-family="Arial,sans-serif" font-size="78" font-weight="700">87<tspan fill="#94a3b8" font-size="30"> / 100</tspan></text>
+  <rect x="564" y="555" width="104" height="94" rx="18" fill="#1b3d2a" stroke="#3fb950"/>
+  <text x="616" y="619" text-anchor="middle" fill="#3fb950" font-family="Arial,sans-serif" font-size="52" font-weight="700">B</text>
+  <g font-family="Arial,sans-serif" font-size="21" fill="#e2e8f0">
+    <rect x="34" y="769" width="682" height="86" rx="15" fill="#111c2d" stroke="#26364c"/>
+    <text x="65" y="822">📄  Documentation</text><text x="680" y="822" text-anchor="end">92.0</text>
+    <rect x="34" y="871" width="682" height="86" rx="15" fill="#111c2d" stroke="#26364c"/>
+    <text x="65" y="924">⚙  CI/CD &amp; Automation</text><text x="680" y="924" text-anchor="end">80.0</text>
+    <rect x="34" y="973" width="682" height="86" rx="15" fill="#111c2d" stroke="#26364c"/>
+    <text x="65" y="1026">🔒  Security</text><text x="680" y="1026" text-anchor="end">Not verifiable</text>
+    <rect x="34" y="1075" width="682" height="86" rx="15" fill="#111c2d" stroke="#26364c"/>
+    <text x="65" y="1128">👥  Community</text><text x="680" y="1128" text-anchor="end">75.0</text>
+  </g>
+  <text x="375" y="1233" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="18">A decision aid — not a substitute for a professional audit.</text>
+  <text x="375" y="1270" text-anchor="middle" fill="#94a3b8" font-family="Arial,sans-serif" font-size="18">Responsive interface preview</text>
+</svg>

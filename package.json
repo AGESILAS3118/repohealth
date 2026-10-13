@@ -1,0 +1,26 @@
+{
+  "name": "repohealth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Analyseur de santé pour dépôts GitHub publics, 100% côté navigateur.",
+  "homepage": "https://agesilas3118.github.io/repohealth/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AGESILAS3118/repohealth"
+  },
+  "bugs": {
+    "url": "https://github.com/AGESILAS3118/repohealth/issues"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "github",
+    "repository-health",
+    "pwa",
+    "vanilla-js"
+  ],
+  "author": "",
+  "license": "MIT"
+}
