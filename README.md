@@ -158,6 +158,16 @@ To redeploy manually, open **Actions → Deploy to GitHub Pages → Run workflow
 
 ---
 
+## 🤝 Contributing
+
+Contributions are welcome. Please read the [contribution guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before opening a pull request. To report a security issue, follow [SECURITY.md](SECURITY.md).
+
+## 🆘 Support
+
+See [SUPPORT.md](SUPPORT.md) for help, bug reports, feature requests, and documentation links. You can also use the [Bug Report](https://github.com/AGESILAS3118/repohealth/issues/new?template=bug_report.md) and [Feature Request](https://github.com/AGESILAS3118/repohealth/issues/new?template=feature_request.md) issue templates.
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).

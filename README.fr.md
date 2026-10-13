@@ -158,6 +158,16 @@ Pour relancer le déploiement manuellement : **Actions → Deploy to GitHub Page
 
 ---
 
+## 🤝 Contribuer
+
+Les contributions sont les bienvenues. Consultez le [guide de contribution](CONTRIBUTING.md) et le [code de conduite](CODE_OF_CONDUCT.md) avant d'ouvrir une pull request. Pour signaler une vulnérabilité, suivez les consignes de [SECURITY.md](SECURITY.md).
+
+## 🆘 Support
+
+Consultez [SUPPORT.md](SUPPORT.md) pour obtenir de l'aide, signaler un bug, proposer une fonctionnalité et accéder à la documentation. Vous pouvez aussi utiliser les modèles [Bug Report](https://github.com/AGESILAS3118/repohealth/issues/new?template=bug_report.md) et [Feature Request](https://github.com/AGESILAS3118/repohealth/issues/new?template=feature_request.md).
+
+---
+
 ## 📄 Licence
 
 Ce projet est sous licence [MIT](LICENSE).
